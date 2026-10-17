@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title data-id="th-modified">動手玩幾何：平行四邊形角度探索</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        canvas {
+            touch-action: none; /* 防止觸控時觸發瀏覽器預設捲動行為 */
+        }
+    </style>
+    <meta property="og:title" content="動手玩幾何：平行四邊形角度探索" data-id="th-modified">
+    <meta name="description" content="對角相等、鄰角互補" data-id="th-modified">
+    <meta property="og:description" content="對角相等、鄰角互補" data-id="th-modified">
+    <meta property="og:image" content="https://tiiny.host/assets/logo-purple-bg.png" data-id="th-modified">
+    <meta property="og:image:width" content="1501" data-id="th-modified">
+    <meta property="og:image:height" content="1501" data-id="th-modified">
+    <meta property="og:image:type" content="image/png" data-id="th-modified">
+    <meta property="og:url" content="https://coffee-thelma-16.tiiny.site/" data-id="th-modified">
+    <meta property="og:type" content="website" data-id="th-modified">
+    <script defer data-domain="coffee-thelma-16.tiiny.site" src="https://analytics.tiiny.net/js/plausible.js"></script>
+    <script type="text/javascript" src="https://tiiny.host/ad-script.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col justify-between text-slate-800">
+    <!-- 頂部標題與指引 -->
+    <header class="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 text-white py-3 px-4 md:py-4 md:px-6 shadow-md text-center">
+        <h1 class="text-xl md:text-3xl font-bold tracking-wide">動手玩幾何：平行四邊形角度探索</h1>
+        <p class="text-xs md:text-sm text-indigo-100 mt-1">請直接用手指或滑鼠拖拉畫布中的任一頂點（A、B、C、D），觀察角度的即時變化！</p>
+    </header>
+
+    <!-- 主要內容區：極簡乾淨大畫布 -->
+    <main class="max-w-4xl w-full mx-auto p-3 md:p-6 my-auto flex flex-col items-center">
+        <div class="bg-white rounded-2xl md:rounded-3xl shadow-xl p-4 md:p-8 border border-slate-200 w-full flex flex-col items-center">
+            <!-- Canvas 容器 (針對手機高度最佳化) -->
+            <div class="w-full h-[380px] sm:h-[420px] md:h-[520px] relative flex items-center justify-center bg-slate-50 rounded-xl md:rounded-2xl border-2 border-dashed border-slate-300 overflow-hidden shadow-inner">
+                <canvas id="canvas" class="w-full h-full cursor-crosshair"></canvas>
+            </div>
+            <!-- 底部極簡提示 -->
+            <div class="mt-3 md:mt-4 text-xs md:text-sm text-slate-500 font-medium text-center">
+                ✨ 四個頂點附近清晰顯示即時運算角度，拖拉時自動維持平行四邊形結構。
+            </div>
+        </div>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="text-center py-3 text-xs text-slate-400 border-t border-slate-200">
+        動手玩幾何 &bull; 專為中小學數學互動教學設計
+    </footer>
+
+    <!-- JavaScript 互動與平行四邊形幾何核心 -->
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let pts = {
+            A: { x: 0, y: 0 },
+            B: { x: 0, y: 0 },
+            C: { x: 0, y: 0 },
+            D: { x: 0, y: 0 }
+        };
+
+        let draggingPoint = null;
+
+        function init() {
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            setupEvents();
+        }
+
+        function resizeCanvas() {
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+                resetDefaultShape();
+            }
+        }
+
+        function resetDefaultShape() {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            
+            // 根據螢幕尺寸動態計算縮放比例，防止手機畫面過小導致圖形超出邊界
+            const scale = Math.min(canvas.width, canvas.height) / 450;
+            const dx = 110 * scale;
+            const dy = 70 * scale;
+            const offset = 55 * scale;
+
+            // 動態調整後的響應式初始座標
+            pts = {
+                A: { x: cx - dx, y: cy - dy },
+                D: { x: cx + dx, y: cy - dy },
+                B: { x: cx - dx + offset, y: cy + dy },
+                C: { x: cx + dx + offset, y: cy + dy }
+            };
+            update();
+        }
+
+        // 計算向量夾角 (度數)
+        function getAngle(p1, p, p2) {
+            const v1 = { x: p1.x - p.x, y: p1.y - p.y };
+            const v2 = { x: p2.x - p.x, y: p2.y - p.y };
+            const dot = v1.x * v2.x + v1.y * v2.y;
+            const m1 = Math.hypot(v1.x, v1.y);
+            const m2 = Math.hypot(v2.x, v2.y);
+            if (m1 === 0 || m2 === 0) return 0;
+            let cosTheta = dot / (m1 * m2);
+            cosTheta = Math.max(-1, Math.min(1, cosTheta));
+            return Math.acos(cosTheta) * (180 / Math.PI);
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 計算四個角的角度
+            const angleA = getAngle(pts.B, pts.A, pts.D);
+            const angleB = getAngle(pts.A, pts.B, pts.C);
+            const angleC = getAngle(pts.B, pts.C, pts.D);
+            const angleD = getAngle(pts.C, pts.D, pts.A);
+
+            // 1. 繪製平行四邊形填滿與邊線
+            ctx.beginPath();
+            ctx.moveTo(pts.A.x, pts.A.y);
+            ctx.lineTo(pts.B.x, pts.B.y);
+            ctx.lineTo(pts.C.x, pts.C.y);
+            ctx.lineTo(pts.D.x, pts.D.y);
+            ctx.closePath();
+
+            ctx.fillStyle = 'rgba(79, 70, 229, 0.08)';
+            ctx.fill();
+            ctx.strokeStyle = '#4f46e5';
+            ctx.lineWidth = 4;
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            // 2. 繪製頂點與角度標籤
+            drawVertexAndBadge('A', pts.A, angleA, '#2563eb', -50, -32);
+            drawVertexAndBadge('B', pts.B, angleB, '#059669', -50, 32);
+            drawVertexAndBadge('C', pts.C, angleC, '#2563eb', 50, 32);
+            drawVertexAndBadge('D', pts.D, angleD, '#059669', 50, -32);
+        }
+
+        function drawVertexAndBadge(name, p, angleVal, color, offX, offY) {
+            // 繪製頂點圓形控制點（手機觸控範圍加大至 16px 半徑，點選更輕鬆）
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3.5;
+            ctx.shadowColor = 'rgba(0,0,0,0.25)';
+            ctx.shadowBlur = 8;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 繪製頂點名稱
+            ctx.font = 'bold 16px Inter, sans-serif';
+            ctx.fillStyle = '#1e293b';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(name, p.x + (offX > 0 ? 22 : -22), p.y + (offY > 0 ? 22 : -22));
+
+            // 繪製角度徽章
+            const badgeText = `∠${name} = ${angleVal.toFixed(0)}°`;
+            ctx.font = 'bold 14px Inter, Noto Sans TC, sans-serif';
+            const metrics = ctx.measureText(badgeText);
+            const bw = metrics.width + 18;
+            const bh = 30;
+            const bx = p.x + offX;
+            const by = p.y + offY;
+
+            ctx.shadowColor = 'rgba(0,0,0,0.15)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 2;
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, 8);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(badgeText, bx, by);
+        }
+
+        // 智慧平行四邊形拖拉與對角線中心對稱運算
+        function setupEvents() {
+            const getPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            };
+
+            const onStart = (e) => {
+                const pos = getPos(e);
+                for (let key in pts) {
+                    // 手機觸控容許判定距離放大到 45px，手指比較好抓取
+                    if (Math.hypot(pos.x - pts[key].x, pos.y - pts[key].y) < 45) {
+                        draggingPoint = key;
+                        break;
+                    }
+                }
+            };
+
+            const onMove = (e) => {
+                if (!draggingPoint) return;
+                
+                // 防止手機拖拉時頁面跟著上下捲動
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
+
+                const pos = getPos(e);
+
+                // 利用對角頂點之和相等性質 (A + C = B + D) 維持平行四邊形
+                if (draggingPoint === 'A') {
+                    pts.A = { x: pos.x, y: pos.y };
+                    pts.C = { x: pts.B.x + pts.D.x - pts.A.x, y: pts.B.y + pts.D.y - pts.A.y };
+                } else if (draggingPoint === 'B') {
+                    pts.B = { x: pos.x, y: pos.y };
+                    pts.D = { x: pts.A.x + pts.C.x - pts.B.x, y: pts.A.y + pts.C.y - pts.B.y };
+                } else if (draggingPoint === 'C') {
+                    pts.C = { x: pos.x, y: pos.y };
+                    pts.A = { x: pts.B.x + pts.D.x - pts.C.x, y: pts.B.y + pts.D.y - pts.C.y };
+                } else if (draggingPoint === 'D') {
+                    pts.D = { x: pos.x, y: pos.y };
+                    pts.B = { x: pts.A.x + pts.C.x - pts.D.x, y: pts.A.y + pts.C.y - pts.D.y };
+                }
+
+                update();
+            };
+
+            const onEnd = () => {
+                draggingPoint = null;
+            };
+
+            // 滑鼠事件
+            canvas.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+
+            // 觸控事件 (設定 passive: false 允許 e.preventDefault 生效)
+            canvas.addEventListener('touchstart', onStart, { passive: false });
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onEnd);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
